@@ -1,0 +1,48 @@
+Copyright (c) 2013 Qualcomm Atheros, Inc..
+
+All Rights Reserved.
+Qualcomm Atheros Confidential and Proprietary.
+--- a/rom-boot-drv/Makefile
++++ b/rom-boot-drv/Makefile
+@@ -109,7 +109,7 @@ $(PRJ_NAME).srec : $(PRJ_NAME).elf
+ 
+ $(PRJ_NAME).bin : $(PRJ_NAME).elf
+ 	$(OBJCOPY) -S -O binary $(strip-flags) $(PRJ_NAME).elf $(PRJ_NAME).bin
+-	../utility/bin/bin2hex $(PRJ_NAME).bin fwu_$(PRJ_NAME).c 0 usb waspRomInitFw
++	$(UTILPATH)/bin2hex $(PRJ_NAME).bin fwu_$(PRJ_NAME).c 0 usb waspRomInitFw
+ 
+ clean:
+ 	rm -f *~ *.o $(PRJ_NAME).elf $(PRJ_NAME).srec $(PRJ_NAME).bin fwu_$(PRJ_NAME).c
+--- a/rom-boot-drv/mk2stage
++++ b/rom-boot-drv/mk2stage
+@@ -32,6 +32,8 @@ PRINTF=/usr/bin/printf
+ 
+ ps=2048			# Nand page size
+ 
++UTILPATH=${UTILPATH:-../utility/bin}
++
+ #
+ # The following load and entry point addresses are
+ # in the uncached space, so that the boot-rom can
+@@ -108,7 +110,7 @@ prep_file()
+ 	ep=`/bin/echo -n $2 | cut -c1-8 | sed 's/../\\\\x&/g'`
+ 	la=`/bin/echo -n $3 | cut -c1-8 | sed 's/../\\\\x&/g'`
+ 	sz=`$PRINTF "%08x" $sz | cut -c1-8 | sed 's/../\\\\x&/g'`
+-	cs=`../utility/bin/checksum $tf swap | sed 's/../\\\\x&/g'`
++	cs=`${UTILPATH}/checksum $tf swap | sed 's/../\\\\x&/g'`
+ 
+ 	#
+ 	# Remember to update 'hs' if something gets added here...
+--- a/rom-boot-drv-sco/Makefile
++++ b/rom-boot-drv-sco/Makefile
+@@ -143,8 +143,8 @@ $(PRJ_NAME).srec : $(PRJ_NAME).elf
+ 
+ $(PRJ_NAME).bin : $(PRJ_NAME).elf
+ 	$(OBJCOPY) -S -O binary $(strip-flags) $(PRJ_NAME).elf $(PRJ_NAME).bin
+-	../utility/bin/bin2hex $(PRJ_NAME).bin fwu_$(PRJ_NAME).c 0 usb waspRomInitFw
+-	../utility/bin/array2bin fwu_$(PRJ_NAME).c ath_tgt_fw1.fw
++	$(UTILPATH)/bin2hex $(PRJ_NAME).bin fwu_$(PRJ_NAME).c 0 usb waspRomInitFw
++	$(UTILPATH)/array2bin fwu_$(PRJ_NAME).c ath_tgt_fw1.fw
+ 
+ clean:
+ 	rm -f *~ *.o $(PRJ_NAME).elf $(PRJ_NAME).srec $(PRJ_NAME).bin fwu_$(PRJ_NAME).c

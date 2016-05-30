@@ -1,0 +1,60 @@
+diff -ruN linux-3.3.8.orig/include/linux/skbuff.h linux-3.3.8/include/linux/skbuff.h
+--- linux-3.3.8.orig/include/linux/skbuff.h	2016-01-25 11:47:08.949999979 +0000
++++ linux-3.3.8/include/linux/skbuff.h	2016-01-25 11:54:39.336666666 +0000
+@@ -316,6 +316,16 @@
+ #define NET_SKBUFF_NF_DEFRAG_NEEDED 1
+ #endif
+ 
++
++typedef struct qmos_skb_info
++{
++	unsigned char    wl_type;
++    unsigned char    wl_ctrl;
++    unsigned char    wl_args;
++	unsigned char  	 reserved;
++}qmos_skb_info;
++
++
+ /** 
+  *	struct sk_buff - socket buffer
+  *	@next: Next buffer in list
+@@ -484,6 +494,8 @@
+ 				*data;
+ 	unsigned int		truesize;
+ 	atomic_t		users;
++	struct list_head    skb_node;
++	qmos_skb_info       wns_info;
+ };
+ 
+ #ifdef __KERNEL__
+diff -ruN linux-3.3.8.orig/net/core/skbuff.c linux-3.3.8/net/core/skbuff.c
+--- linux-3.3.8.orig/net/core/skbuff.c	2016-01-25 11:49:02.469999994 +0000
++++ linux-3.3.8/net/core/skbuff.c	2016-01-26 02:33:05.166666667 +0000
+@@ -280,6 +280,9 @@
+ 	skb->mac_header = ~0U;
+ #endif
+ 
++	memset(&skb->wns_info, 0, sizeof(skb->wns_info));
++	INIT_LIST_HEAD((&skb->skb_node));
++
+ 	/* make sure we initialize shinfo sequentially */
+ 	shinfo = skb_shinfo(skb);
+ 	memset(shinfo, 0, offsetof(struct skb_shared_info, dataref));
+@@ -296,6 +299,8 @@
+ 		atomic_set(fclone_ref, 1);
+ 
+ 		child->fclone = SKB_FCLONE_UNAVAILABLE;
++		memset(&skb->wns_info, 0, sizeof(skb->wns_info));
++		INIT_LIST_HEAD(&skb->skb_node);
+ 	}
+ out:
+ 	return skb;
+@@ -1233,6 +1238,8 @@
+ 	skb->hdr_len  = 0;
+ 	skb->nohdr    = 0;
+ 	atomic_set(&skb_shinfo(skb)->dataref, 1);
++	memset(&skb->wns_info, 0, sizeof(skb->wns_info));
++	INIT_LIST_HEAD((&skb->skb_node));
+ 	return 0;
+ 
+ nofrags:

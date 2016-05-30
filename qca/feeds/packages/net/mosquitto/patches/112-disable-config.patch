@@ -1,0 +1,20 @@
+--- a/mosquitto.conf	2016-04-06 23:28:39.000000000 +0000
++++ b/mosquitto.conf	2016-03-24 08:54:12.000000000 +0000
+@@ -40,7 +40,7 @@
+ # If run as a non-root user, this setting has no effect.
+ # Note that on Windows this has no effect and so mosquitto should 
+ # be started by the user you wish it to run as.
+-#user mosquitto
++user root
+ 
+ # The maximum number of QoS 1 and 2 messages currently inflight per 
+ # client.
+@@ -534,7 +534,7 @@
+ # 
+ # See the TLS client require_certificate and use_identity_as_username options
+ # for alternative authentication options.
+-#password_file
++password_file /etc/config/mqttauth.txt
+ 
+ # Access may also be controlled using a pre-shared-key file. This requires
+ # TLS-PSK support and a listener configured to use it. The file should be text
