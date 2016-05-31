@@ -90,6 +90,7 @@ platform_check_image() {
 	ap121 | \
 	ap121-mini | \
 	ap152 | \
+	ap143 | \
 	ap136 | \
 	ap96 | \
 	aph131 |\

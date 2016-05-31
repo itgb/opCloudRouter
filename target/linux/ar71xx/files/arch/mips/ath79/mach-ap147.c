@@ -55,12 +55,12 @@
 
 static struct gpio_led ap147_leds_gpio[] __initdata = {
 	{
-		.name		= "ap147:green:status",
+		.name		= "led_status_error",
 		.gpio		= AP147_GPIO_LED_STATUS,
 		.active_low	= 1,
 	},
 	{
-		.name		= "ap147:green:wlan",
+		.name		= "led_status_ok",
 		.gpio		= AP147_GPIO_LED_WLAN,
 		.active_low	= 1,
 	}

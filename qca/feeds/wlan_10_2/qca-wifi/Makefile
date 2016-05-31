@@ -1,30 +1,24 @@
-#
-# Copyright (c) 2013 Qualcomm Atheros, Inc..
-#
-# All Rights Reserved.
-# Qualcomm Atheros Confidential and Proprietary.
-#
 
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=qca-wifi
 
+
 # This value is custom to this package
 # The first version will be used as a default and the other selectable
 # in the menuconfig
-PKG_VERSION:=10.2.2.33
+PKG_VERSION:=21.3.3.44
 PKG_RELEASE:=1
 PKG_BUILD_DIR:=$(KERNEL_BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)-$(BUILD_VARIANT)/$(PKG_NAME)-$(PKG_VERSION)
-PKG_SOURCE_VERSION:=3323
-#PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.bz2
+PKG_SOURCE_VERSION:=3956
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-${PKG_SOURCE_VERSION}.tar.bz2
 
 include $(INCLUDE_DIR)/package-version-override.mk
 include $(INCLUDE_DIR)/package.mk
 #PKG_SOURCE_URL:=http://tritium.qca.qualcomm.com/software/$(PKG_BRANCH)/AP$(PKG_VERSION:999.999.0%=QCAMain%)/src/components
 
-PKG_SOURCE_URL:=https://192.168.0.210/svn/ls/ap4.x/feeds/qca-wifi-10.2.2.33
+PKG_SOURCE_URL:=https://192.168.0.210/svn/ls/ap4.x/feeds/qca-wifi-21.3.3.44
 PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
 PKG_SOURCE_PROTO:=svn
 
@@ -64,6 +58,7 @@ ifeq ($(ARCH_PACKAGES),ar71xx)
 QCAWLAN_MAKEOPTS+= \
 	BUS=dual \
 	AH_CAL_IN_DRAM_FROM_HOST=1 \
+	ATH_CAL_FROM_FILE_11AC_PCIE="ath10k/QCA988X/hw2.0/board.bin" \
 	AH_CAL_RADIOS_AHB=1 \
 	AH_CAL_RADIOS_PCI=1 \
 	AH_SUPPORT_SCORPION=1
@@ -78,8 +73,8 @@ QCAWLAN_MAKEOPTS+= \
 	ARCH=$(LINUX_KARCH) \
 	KERNELARCH=$(LINUX_KARCH) \
 	KERNELVER=$(LINUX_VERSION) \
-	FIRMWARE_REL_PATH=firmware \
-	PERF_PWR_OFFLOAD_DIR_PATH=$(PKG_BUILD_DIR)/firmware \
+	FIRMWARE_REL_PATH=offload \
+	PERF_PWR_OFFLOAD_DIR_PATH=$(PKG_BUILD_DIR)/offload \
 	QCA_NSS_INCLUDE=$(STAGING_DIR)/usr/include/qca-nss-drv \
 	KBUILDPATH=$(LINUX_SRC_DIR) \
 	KERNELPATH=$(LINUX_DIR)
@@ -151,15 +146,16 @@ endef
 QCAWLAN_HEADERS:= \
    adf/include/os/adf_os_types.h \
    asf/include/asf_amem.h \
-   firmware/host/include/a_types.h \
-   firmware/host/include/ol_params.h \
-   firmware/include/athdefs.h \
-   firmware/include/wal_dbg_stats.h \
-   firmware/host/include/ol_txrx_stats.h \
+   offload/include/a_types.h \
+   offload/include/ol_params.h \
+   include/athdefs.h \
+   include/wal_dbg_stats.h \
+   offload/include/ol_txrx_stats.h \
    include/ieee80211_defines.h \
    include/_ieee80211.h \
    include/ieee80211.h \
    include/ieee80211_wnm_proto.h \
+   include/ieee80211_band_steering_api.h \
    include/if_upperproto.h \
    include/compat.h \
    include/wlan_opts.h \
@@ -171,15 +167,24 @@ QCAWLAN_HEADERS:= \
    os/linux/include/ieee80211_external.h \
    os/linux/include/ieee80211_ioctl.h \
    os/linux/include/ieee80211_ev.h \
+   os/linux/include/ieee80211_wpc.h \
    os/linux/tools/athrs_ctrl.h \
    lmac/ath_dev/if_athioctl.h \
    lmac/dfs/dfs_ioctl.h \
-   lmac/spectral/spectral_data.h \
-   lmac/spectral/spectral_types.h \
-   lmac/spectral/spectral.h \
-   lmac/spectral/spec_msg_proto.h \
    lmac/spectral/spectral_ioctl.h \
-   umac/include/ieee80211_aow_shared.h
+   umac/include/ieee80211_aow_shared.h \
+   include/acfg_wsupp_types.h \
+   include/acfg_wsupp_api.h \
+   include/acfg_misc.h \
+   include/acfg_event_types.h \
+   include/acfg_event.h \
+   include/acfg_drv_if.h \
+   include/acfg_api_types.h \
+   include/acfg_api.h \
+   include/appbr_if.h \
+   include/appbr_types.h \
+   include/bypass_types.h
+
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR)/usr/include
@@ -207,11 +212,16 @@ define qca-wifi_update_patches_version
 		ln -s patches-$(PKG_BRANCH) patches
 endef
 
+TARGET_LDFLAGS += -ltlvutil -ltlvtemplate -L$(STAGING_DIR)/usr/lib/wifi
+FWINCLUDES := $(PKG_BUILD_DIR)/fwcommon
+FWBIN := $(PKG_BUILD_DIR)/fwbin
 define Build/Compile
 	@echo "Saving the driver configuration flags to $(PKG_BUILD_DIR)/lsdk_flags"
 	echo $(QCAWLAN_MAKEOPTS) | sed 's, ,\n,g' > $(PKG_BUILD_DIR)/lsdk_flags
 	mkdir -p $(PKG_BUILD_DIR)/root/usr/www/cgi-bin
 	mkdir -p $(PKG_BUILD_DIR)/root/sbin
+	cp -af $(FWINCLUDES)/* $(PKG_BUILD_DIR)/include/ 
+	cp -af $(FWBIN)/* $(PKG_BUILD_DIR)/include/
 	($(foreach var,$(strip $(QCAWLAN_MAKEOPTS)),export $(var);) \
 	    $(MAKE) -C $(PKG_BUILD_DIR)/hal/linux TARGET=$(HAL_TARGET))
 	($(foreach var,$(strip $(QCAWLAN_MAKEOPTS)),export $(var);) \
@@ -222,21 +232,22 @@ define Build/Compile
 	    $(MAKEARCH) -C $(PKG_BUILD_DIR)/os/linux/tools \
 	        INSTALL_ROOT=$(PKG_BUILD_DIR)/root ath_tools wlanconfig)
 	($(foreach var,$(strip $(QCAWLAN_MAKEOPTS)),export $(var);) \
-	    $(MAKEARCH) -C $(PKG_BUILD_DIR)/firmware/host/tools/systemtools/testcmd_tlv \
-	        -f makefile.linux WORKAREA=$(PKG_BUILD_DIR)/firmware WLAN_TOP=$(PKG_BUILD_DIR))
+	    $(MAKEARCH) -C $(PKG_BUILD_DIR)/offload/tools/systemtools/testcmd_tlv \
+		LIBS="$(TARGET_LDFLAGS)" \
+	        -f makefile.linux WORKAREA=$(PKG_BUILD_DIR)/offload WLAN_TOP=$(PKG_BUILD_DIR))
 	($(foreach var,$(strip $(QCAWLAN_MAKEOPTS)),export $(var);) \
-	    $(MAKEARCH) -C $(PKG_BUILD_DIR)/firmware/host/os/linux/tools/athdiag)
+	    $(MAKEARCH) -C $(PKG_BUILD_DIR)/offload/os/linux/tools/athdiag)
 endef
 
 define KernelPackage/qca-wifi/install/Default
-	$(INSTALL_DIR) $(1)/usr/sbin $(1)/usr/lib
+	$(INSTALL_DIR) $(1)/usr/sbin $(1)/usr/lib/wifi
 	$(CP) ./files/* $(1)/
 	[ ! -d files-$(PKG_BRANCH) ] || \
 		$(CP) ./files-$(PKG_BRANCH)/* $(1)/
 	$(INSTALL_BIN) $(foreach tool,$(QCAWLAN_TOOL_LIST),$(PKG_BUILD_DIR)/os/linux/tools/$(tool)) $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/firmware/host/tools/systemtools/testcmd_tlv/Linux/athtestcmd $(1)/usr/sbin
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/firmware/host/tools/systemtools/testcmd_tlv/Linux/*.so $(1)/usr/lib
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/firmware/host/os/linux/tools/athdiag/athdiag $(1)/usr/sbin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/offload/tools/systemtools/testcmd_tlv/Linux/athtestcmd $(1)/usr/sbin
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/offload/tools/systemtools/testcmd_tlv/Linux/*.so $(1)/usr/lib/wifi
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/offload/os/linux/tools/athdiag/athdiag $(1)/usr/sbin
 endef
 
 #########################################################

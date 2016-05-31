@@ -1,9 +1,18 @@
 #!/bin/sh
 #
-# Copyright (c) 2014 Qualcomm Atheros, Inc.
+# Copyright (c) 2014, The Linux Foundation. All rights reserved.
 #
-# All Rights Reserved.
-# Qualcomm Atheros Confidential and Proprietary.
+#  Permission to use, copy, modify, and/or distribute this software for any
+#  purpose with or without fee is hereby granted, provided that the above
+#  copyright notice and this permission notice appear in all copies.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+#  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+#  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+#  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+#  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+#  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+#  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
 append DRIVERS "qcawifi"
@@ -70,8 +79,8 @@ scan_qcawifi() {
 		
 		config_get mode "$vif" mode
 		case "$mode" in
-			adhoc|sta|ap|monitor)
-				append $mode "$vif"
+			adhoc|sta|ap|monitor|wrap)
+				append "$mode" "$vif"
 			;;
 			wds)
 				config_get ssid "$vif" ssid
@@ -81,7 +90,7 @@ scan_qcawifi() {
 				config_set "$vif" mode sta
 				mode="sta"
 				addr="$ssid"
-				${addr:+append $mode "$vif"}
+				${addr:+append "$mode" "$vif"}
 			;;
 			*) echo "$device($vif): Invalid mode, ignored."; continue;;
 		esac
@@ -100,7 +109,7 @@ scan_qcawifi() {
 		*) echo "$device: Invalid mode combination in config"; return 1;;
 	esac
 
-	config_set "$device" vifs "${ap:+$ap }${sta:+$sta }${adhoc:+$adhoc }${wds:+$wds }${monitor:+$monitor}"
+	config_set "$device" vifs "${wrap:+$wrap }${sta:+$sta }${ap:+$ap }${adhoc:+$adhoc }${wds:+$wds }${monitor:+$monitor}"
 }
 
 
@@ -124,6 +133,15 @@ load_qcawifi() {
 
 	config_get ol_vo_min_free qcawifi ol_vo_min_free
 	[ -n "$ol_vo_min_free" ] && append umac_args "OL_ACVOMinfree=$ol_vo_min_free"
+
+	config_get enable_max_clients qcawifi enable_max_clients
+	[ -n "$enable_max_clients" ] && append umac_args "enable_max_clients=$enable_max_clients"
+
+	config_get atf_mode qcawifi atf_mode
+	[ -n "$atf_mode" ] && append umac_args "atf_mode=$atf_mode"
+
+	config_get lteu_support qcawifi lteu_support
+	[ -n "$lteu_support" ] && append umac_args "lteu_support=$lteu_support"
 
 	for mod in $(cat /etc/modules.d/33-qca-wifi*); do
 
@@ -149,6 +167,8 @@ load_qcawifi() {
 
 unload_qcawifi() {
 	return
+	
+	appctl stop nlkreport
 	for mod in $(cat /etc/modules.d/33-qca-wifi* | sed '1!G;h;$!d'); do
 		[ -d /sys/module/${mod} ] && rmmod ${mod}
 	done
@@ -174,6 +194,14 @@ disable_qcawifi() {
 					kill "$(cat "/var/run/wifi-${dev}.pid")"
 				ifconfig "$dev" down
 				unbridge "$dev"
+			}
+		}
+	done
+
+	for dev in *; do
+		[ -f /sys/class/net/${dev}/parent ] && { \
+			local parent=$(cat /sys/class/net/${dev}/parent)
+			[ -n "$parent" -a "$parent" = "$device" ] && { \
 				wlanconfig "$dev" destroy
 			}
 		}
@@ -264,7 +292,7 @@ enable_qcawifi() {
 	[ -n "$ant_retrain" ] && iwpriv "$phy" ant_retrain "$ant_retrain"
 
 	config_get retrain_interval "$device" retrain_interval
-	[ -n "$retrain_interval" ] && iwpriv "$phy" retrain_interval "$retrain_interval"
+	[ -n "$retrain_interval" ] && iwpriv "$phy" ret_interval "$retrain_interval"
 
 	config_get retrain_drop "$device" retrain_drop
 	[ -n "$retrain_drop" ] && iwpriv "$phy" retrain_drop "$retrain_drop"
@@ -306,7 +334,7 @@ enable_qcawifi() {
 	[ -n "$dcs_errth" ] && iwpriv "$phy" set_dcs_errth "$dcs_errth"
 
 	config_get dcs_phyerrth "$device" dcs_phyerrth
-	[ -n "$dcs_phyerrth" ] && iwpriv "$phy" set_dcs_phyerrth "$dcs_phyerrth"
+	[ -n "$dcs_phyerrth" ] && iwpriv "$phy" s_dcs_phyerrth "$dcs_phyerrth"
 
 	config_get dcs_usermaxc "$device" dcs_usermaxc
 	[ -n "$dcs_usermaxc" ] && iwpriv "$phy" set_dcs_usermaxc "$dcs_usermaxc"
@@ -348,7 +376,7 @@ enable_qcawifi() {
 	[ -n "$reset_dscp_map" ] && iwpriv "$phy" reset_dscp_map "$reset_dscp_map"
 
 	config_get dscp_tid_map "$device" dscp_tid_map
-	[ -n "$dscp_tid_map" ] && iwpriv "$phy" set_dscp_tid_map $dscp_tid_map
+	[ -n "$dscp_tid_map" ] && iwpriv "$phy" s_dscp_tid_map $dscp_tid_map
 
 	config_get_bool igmp_dscp_ovride "$device" igmp_dscp_ovride
 	[ -n "$igmp_dscp_ovride" ] && iwpriv "$phy" sIgmpDscpOvrid "$igmp_dscp_ovride"
@@ -395,21 +423,31 @@ enable_qcawifi() {
 	config_get_bool aldstats "$device" aldstats
 	[ -n "$aldstats" ] && iwpriv "$phy" aldstats "$aldstats"
 
+	config_get setHwaddr "$device" setHwaddr
+	[ -n "$setHwaddr" ] && iwpriv "$phy" setHwaddr "$setHwaddr"
+
+	config_get mcast_echo "$device" mcast_echo
+	[ -n "$mcast_echo" ] && iwpriv "$phy" mcast_echo "${mcast_echo}"
+
 	for vif in $vifs; do
-		local start_hostapd= vif_txpower= nosbeacon=
+		local vif_txpower= nosbeacon= wlanaddr=""
 		config_get ifname "$vif" ifname
-		config_get enc "$vif" encryption "none"
-		config_get eap_type "$vif" eap_type
 		config_get mode "$vif" mode
 
 		case "$mode" in
-			sta) config_get_bool nosbeacon "$device" nosbeacon;;
-			adhoc) config_get_bool nosbeacon "$vif" sw_merge 1;;
+			sta)
+				config_get_bool nosbeacon "$device" nosbeacon
+				config_get qwrap_enable "$device" qwrap_enable 0
+				[ $qwrap_enable -gt 0 ] && wlanaddr="00:00:00:00:00:00"
+				;;
+			adhoc)
+				config_get_bool nosbeacon "$vif" sw_merge 1
+				;;
 		esac
 
 		[ "$nosbeacon" = 1 ] || nosbeacon=""
-		[ -n "${DEBUG}" ] && echo wlanconfig "$ifname" create wlandev "$phy" wlanmode "$mode" ${nosbeacon:+nosbeacon}
-		ifname=$(/usr/sbin/wlanconfig "$ifname" create wlandev "$phy" wlanmode "$mode" ${nosbeacon:+nosbeacon})
+		[ -n "${DEBUG}" ] && echo wlanconfig "$ifname" create wlandev "$phy" wlanmode "$mode" ${wlanaddr:+wlanaddr "$wlanaddr"} ${nosbeacon:+nosbeacon}
+		ifname=$(/usr/sbin/wlanconfig "$ifname" create wlandev "$phy" wlanmode "$mode" ${wlanaddr:+wlanaddr "$wlanaddr"} ${nosbeacon:+nosbeacon})
 		[ $? -ne 0 ] && {
 			echo "enable_qcawifi($device): Failed to set up $mode vif $ifname" >&2
 			continue
@@ -481,41 +519,6 @@ enable_qcawifi() {
 		config_get_bool countryie "$vif" countryie
 		[ -n "$countryie" ] && iwpriv "$ifname" countryie "$countryie"
 
-		case "$enc" in
-			none)
-				# If we're in open mode and want to use WPS, we
-				# must start hostapd
-				config_get_bool wps_pbc "$vif" wps_pbc 0
-				config_get config_methods "$vif" wps_config
-				[ "$wps_pbc" -gt 0 ] && append config_methods push_button
-				[ -n "$config_methods" ] && start_hostapd=1
-			;;
-			wep*)
-				case "$enc" in
-					*mixed*)  iwpriv "$ifname" authmode 4;;
-					*shared*) iwpriv "$ifname" authmode 2;;
-					*)        iwpriv "$ifname" authmode 1;;
-				esac
-				for idx in 1 2 3 4; do
-					config_get key "$vif" "key${idx}"
-					iwconfig "$ifname" enc "[$idx]" "${key:-off}"
-				done
-				config_get key "$vif" key
-				key="${key:-1}"
-				case "$key" in
-					[1234]) iwconfig "$ifname" enc "[$key]";;
-					*) iwconfig "$ifname" enc "$key";;
-				esac
-			;;
-			mixed*|psk*|wpa*|8021x)
-				start_hostapd=1
-				config_get key "$vif" key
-			;;
-			wapi*)
-				start_wapid=1
-				config_get key "$vif" key
-			;;
-		esac
 
 		case "$mode" in
 			sta|adhoc)
@@ -671,17 +674,8 @@ enable_qcawifi() {
 			;;
 		esac
 
-		# 256 QAM capability needs to be parsed first, since
-		# vhtmcs enables/disable rate indices 8, 9 for 2G
-		# only if vht_11ng is set or not
-		config_get_bool vht_11ng "$vif" vht_11ng
-		[ -n "$vht_11ng" ] && iwpriv "$ifname" vht_11ng "$vht_11ng"
-
 		config_get nss "$vif" nss
 		[ -n "$nss" ] && iwpriv "$ifname" nss "$nss"
-
-		config_get vhtmcs "$vif" vhtmcs
-		[ -n "$vhtmcs" ] && iwpriv "$ifname" vhtmcs "$vhtmcs"
 
 		config_get vht_mcsmap "$vif" vht_mcsmap
 		[ -n "$vht_mcsmap" ] && iwpriv "$ifname" vht_mcsmap "$vht_mcsmap"
@@ -703,9 +697,6 @@ enable_qcawifi() {
 
 		config_get cca_thresh "$vif" cca_thresh
 		[ -n "$cca_thresh" ] && iwpriv "$ifname" cca_thresh "$cca_thresh"
-
-		config_get set11NRates "$vif" set11NRates
-		[ -n "$set11NRates" ] && iwpriv "$ifname" set11NRates "$set11NRates"
 
 		config_get set11NRetries "$vif" set11NRetries
 		[ -n "$set11NRetries" ] && iwpriv "$ifname" set11NRetries "$set11NRetries"
@@ -743,7 +734,7 @@ enable_qcawifi() {
 		config_get ssid "$vif" ssid
                 [ -n "$ssid" ] && {
                         iwconfig "$ifname" essid on
-                        iwconfig "$ifname" essid ${ssid:+-- }"$ssid"
+                        iwconfig "$ifname" essid "$ssid"
                 }
 
 		config_get txqueuelen "$vif" txqueuelen
@@ -916,7 +907,7 @@ enable_qcawifi() {
 		[ -n "$setibssdfsparam" ] && iwpriv "$ifname" setibssdfsparam "$setibssdfsparam"
 
 		config_get startibssrssimon "$vif" startibssrssimon
-		[ -n "$startibssrssimon" ] && iwpriv "$ifname" startibssrssimon "$startibssrssimon"
+		[ -n "$startibssrssimon" ] && iwpriv "$ifname" strtibssrssimon "$startibssrssimon"
 
 		config_get setibssrssihyst "$vif" setibssrssihyst
 		[ -n "$setibssrssihyst" ] && iwpriv "$ifname" setibssrssihyst "$setibssrssihyst"
@@ -925,7 +916,7 @@ enable_qcawifi() {
 		[ -n "$noIBSSCreate" ] && iwpriv "$ifname" noIBSSCreate "$noIBSSCreate"
 
 		config_get setibssrssiclass "$vif" setibssrssiclass
-		[ -n "$setibssrssiclass" ] && iwpriv "$ifname" setibssrssiclass $setibssrssiclass
+		[ -n "$setibssrssiclass" ] && iwpriv "$ifname" s_ibssrssiclass $setibssrssiclass
 
 		config_get offchan_tx_test "$vif" offchan_tx_test
 		[ -n "$offchan_tx_test" ] && iwpriv "$ifname" offchan_tx_test $offchan_tx_test
@@ -946,7 +937,78 @@ enable_qcawifi() {
 		}
 		config_list_foreach "$vif" set_max_rate handle_set_max_rate
 
+		config_get dscp_tid_map "$vif" dscp_tid_map
+		[ -n "$dscp_tid_map" ] && iwpriv "$ifname" set_dscp_tidmap $dscp_tid_map
+
+		config_get athnewind "$vif" athnewind
+		[ -n "$athnewind" ] && iwpriv "$ifname" athnewind "$athnewind"
+
+		config_get_bool commitatf "$vif" commitatf
+		[ -n "$commitatf" ] && iwpriv "$ifname" commitatf "${commitatf}"
+
+		config_get perunit "$vif" perunit
+		[ -n "$perunit" ] && iwpriv "$ifname" perunit "${perunit}"
+
+		config_get enh_ind "$vif" enh_ind
+		[ -n "$enh_ind" ] && iwpriv "$ifname" enh-ind "$enh_ind"
+	done
+
+	for vif in $vifs; do
+
+		local start_hostapd= start_wapid=
+
+		config_get ifname "$vif" ifname
+		config_get enc "$vif" encryption "none"
+
 		ifconfig "$ifname" up
+
+		case "$enc" in
+			none)
+				# If we're in open mode and want to use WPS, we
+				# must start hostapd
+				config_get_bool wps_pbc "$vif" wps_pbc 0
+				config_get config_methods "$vif" wps_config
+				[ "$wps_pbc" -gt 0 ] && append config_methods push_button
+				[ -n "$config_methods" ] && start_hostapd=1
+			;;
+			wep*)
+				case "$enc" in
+					*mixed*)  iwpriv "$ifname" authmode 4;;
+					*shared*) iwpriv "$ifname" authmode 2;;
+					*)        iwpriv "$ifname" authmode 1;;
+				esac
+				for idx in 1 2 3 4; do
+					config_get key "$vif" "key${idx}"
+					iwconfig "$ifname" enc "[$idx]" "${key:-off}"
+				done
+				config_get key "$vif" key
+				key="${key:-1}"
+				case "$key" in
+					[1234]) iwconfig "$ifname" enc "[$key]";;
+					*) iwconfig "$ifname" enc "$key";;
+				esac
+			;;
+			mixed*|psk*|wpa*|8021x)
+				start_hostapd=1
+				config_get key "$vif" key
+			;;
+			wapi*)
+				start_wapid=1
+				config_get key "$vif" key
+			;;
+		esac
+
+		config_get set11NRates "$vif" set11NRates
+		[ -n "$set11NRates" ] && iwpriv "$ifname" set11NRates "$set11NRates"
+
+		# 256 QAM capability needs to be parsed first, since
+		# vhtmcs enables/disable rate indices 8, 9 for 2G
+		# only if vht_11ng is set or not
+		config_get_bool vht_11ng "$vif" vht_11ng
+		[ -n "$vht_11ng" ] && iwpriv "$ifname" vht_11ng "$vht_11ng"
+
+		config_get vhtmcs "$vif" vhtmcs
+		[ -n "$vhtmcs" ] && iwpriv "$ifname" vhtmcs "$vhtmcs"
 
 		#support nawds
 		config_get nawds_mode "$vif" nawds_mode
@@ -976,9 +1038,18 @@ enable_qcawifi() {
 		}
 		config_list_foreach "$vif" hmmc_add handle_hmmc_add
 
+		config_get mode "$vif" mode
+
+		config_get_bool ap_isolation_enabled $device ap_isolation_enabled 0
+		config_get_bool isolate "$vif" isolate 0
+
+		if [ $ap_isolation_enabled -ne 0 ]; then
+			[ "$mode" = "wrap" ] && isolate=1
+		fi
+
 		local net_cfg bridge
 		net_cfg="$(find_net_config "$vif")"
-		[ -z "$net_cfg" ] || {
+		[ -z "$net_cfg" -o "$isolate" = 1 -a "$mode" = "wrap" ] || {
 			bridge="$(bridge_interface "$net_cfg")"
 			config_set "$vif" bridge "$bridge"
 			start_net "$ifname" "$net_cfg"
@@ -997,8 +1068,8 @@ enable_qcawifi() {
 		[ -z "$txpower" ] || iwconfig "$ifname" txpower "${txpower%%.*}"
 
 		case "$mode" in
-			ap)
-				config_get_bool isolate "$vif" isolate 0
+			ap|wrap)
+
 				iwpriv "$ifname" ap_bridge "$((isolate^1))"
 
 				config_get_bool l2tif "$vif" l2tif
@@ -1014,6 +1085,7 @@ enable_qcawifi() {
 				fi
 
 				if [ -n "$start_hostapd" ] && eval "type hostapd_setup_vif" 2>/dev/null >/dev/null; then
+
 					hostapd_setup_vif "$vif" atheros no_nconfig || {
 						echo "enable_qcawifi($device): Failed to set up hostapd for interface $ifname" >&2
 						# make sure this wifi interface won't accidentally stay open without encryption
@@ -1025,6 +1097,7 @@ enable_qcawifi() {
 			;;
 			wds|sta)
 				if eval "type wpa_supplicant_setup_vif" 2>/dev/null >/dev/null; then
+
 					wpa_supplicant_setup_vif "$vif" athr || {
 						echo "enable_qcawifi($device): Failed to set up wpa_supplicant for interface $ifname" >&2
 						ifconfig "$ifname" down
@@ -1059,10 +1132,13 @@ pre_qcawifi() {
 				kill "$(cat "/var/run/hostapd.pid")"
 				[ -f "/tmp/hostapd_conf_filename" ] &&
 					rm /tmp/hostapd_conf_filename
+
 			fi
 
+			eval "type qwrap_teardown" >/dev/null 2>&1 && qwrap_teardown
 			eval "type icm_teardown" >/dev/null 2>&1 && icm_teardown
 			eval "type wpc_teardown" >/dev/null 2>&1 && wpc_teardown
+			[ ! -f /etc/init.d/lbd ] || /etc/init.d/lbd stop
 		;;
 	esac
 }
@@ -1125,6 +1201,13 @@ post_qcawifi() {
 					eval "type wpc_setup" >/dev/null 2>&1 && {
 				wpc_setup
 			}
+
+			eval "type qwrap_setup" >/dev/null 2>&1 && qwrap_setup
+
+			# The init script will check whether lbd is actually
+			# enabled
+			[ ! -f /etc/init.d/lbd ] || /etc/init.d/lbd start
+
 		;;
 	esac
 }
