@@ -37,7 +37,7 @@ append_if_notnull=QCAWLAN_MAKEOPTS+=$(if $(call qstrip,$(1)),$(2),$(3))
 QCAWLAN_MODULE_LIST:=
 
 ifneq ($(BUILD_VARIANT),)
-QCAWLAN_MAKEOPTS:=$(shell cat profiles/config.wlan.$(subst -,.,$(BUILD_VARIANT)))
+QCAWLAN_MAKEOPTS:=$(shell cat $(PKG_BUILD_DIR)/os/linux/configs/config.wlan.$(subst -,.,$(BUILD_VARIANT)))
 endif
 
 ifeq ($(ARCH),mips)
