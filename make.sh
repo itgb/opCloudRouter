@@ -28,7 +28,7 @@ sed -i "s/CONFIG_VERSION_DIST=\".*\"/CONFIG_VERSION_DIST=\"$DIST\"/" ./.config
 sed -i "s/CONFIG_VERSION_NUMBER=\".*\"/CONFIG_VERSION_NUMBER=\"`date +%Y%m%d%H%M`\"/" ./.config
 touch ./package/base-files/files/etc/openwrt_release
 
-#make
+make V=s
 
 test $? -eq 0 || exit 1
 
