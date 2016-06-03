@@ -1,2 +1,0 @@
-config TBQ
-	tristate "linux tbq traffic control driver"

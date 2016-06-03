@@ -1,2 +1,0 @@
-config AUTH_REDIRECT
-	tristate "linux auth redirect driver"
