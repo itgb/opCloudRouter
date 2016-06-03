@@ -1,9 +1,9 @@
 #!/bin/sh
 
 #default config
-BOARD=CR9531
+BOARD=CR9563
 VERSION_NAME=soft_version
-CONFIG_NAME=CR9531.config
+CONFIG_NAME=CR9563.config
 CONFIG_PATH="./build_config"
 CONFIG_SUFFIX=".config"
 if [ ! -z "$1" ];then
