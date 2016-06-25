@@ -1,5 +1,5 @@
 config system
-	option hostname	ugw
+	option hostname CR9531
 	option timezone CST-8
 	option zonename Asia/Shanghai
 	option cronloglevel 8
