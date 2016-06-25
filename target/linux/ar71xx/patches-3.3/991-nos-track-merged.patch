@@ -33,7 +33,7 @@ index 29268c2..00929d2 100644
 +	int ret;
 +
 +	nosmem_base = 16 << 20;
-+	nosmem_size = 32 << 20;
++	nosmem_size = 4 << 20;
 +
 +	ret = reserve_bootmem(nosmem_base, nosmem_size, BOOTMEM_EXCLUSIVE);
 +	if (ret < 0) {
@@ -171,8 +171,8 @@ index 0000000..92b0b00
 +#define NOS_USER_TRACK_MAX 			(1 << 19 >> 3)
 +#define NOS_FLOW_TRACK_MAX 			(1 << 18 >> 3)
 +
-+#define NOS_USER_INFO_SIZE			(256)
-+#define NOS_FLOW_INFO_SIZE			(256)
++#define NOS_USER_INFO_SIZE			(16)
++#define NOS_FLOW_INFO_SIZE			(32)
 +
 +#define NOS_USER_DATA_SIZE (NOS_USER_INFO_SIZE - 16)
 +#define NOS_FLOW_DATA_SIZE (NOS_FLOW_INFO_SIZE - sizeof(struct nos_flow_tuple) - 16)
@@ -749,7 +749,7 @@ index 0000000..2dc6fa7
 +	int i;
 +
 +	extern struct resource nosmem_res;
-+	nos_user_info_base = phys_to_virt(nosmem_res.start + (4 << 20));
++	nos_user_info_base = phys_to_virt(nosmem_res.start);
 +	nos_flow_info_base = (void *)(nos_user_info_base + NOS_USER_TRACK_MAX);
 +	nos_track_stats = (void *)(nos_flow_info_base + NOS_FLOW_TRACK_MAX);
 +
